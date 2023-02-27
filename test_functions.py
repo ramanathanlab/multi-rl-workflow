@@ -14,11 +14,11 @@ def test_train():
 def test_rollout():
     # Make sure it caches the model
     start_time = perf_counter()
-    policy_rollout(Path('model-path'), 2)
+    policy_rollout(Path('model-path'), 2, batch_size=8)
     assert perf_counter() - start_time > 0.5
 
     start_time = perf_counter()
-    new_seqs = policy_rollout(Path('model-path'), 4)
+    new_seqs = policy_rollout(Path('model-path'), 2, 2)
     assert len(new_seqs) == 4
     assert perf_counter() - start_time < 0.5
 
