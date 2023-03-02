@@ -33,7 +33,8 @@ loaded_model: Model | None = None  # A loaded model
 
 
 # Functions
-def train_model(model_path: Path, database: Path, num_workers: int, redis_info: tuple[str, int]) -> tuple[Path, list[str]]:
+def train_model(model_path: Path, database: Path, num_workers: int,
+                redis_info: tuple[str, int] = ('localhost', 6379)) -> tuple[Path, list[str]]:
     """Train a machine learning model cooperative with other workers
 
     Multiple instances of this function must be run across multiple workers.
@@ -88,10 +89,12 @@ def policy_rollout(model_path: Path, num_episodes: int, batch_size: int) -> list
         loaded_model_path = model_path
 
     # Generate sequences
-    return [
+    output = [
         sha512(str(random()).encode()).hexdigest()[:64]
         for _ in range(num_episodes * batch_size)
     ]
+
+    return output
 
 
 def score_sequences(sequences: list[Sequence]) -> list[float]:
@@ -169,7 +172,7 @@ def _pin_then_run(function: Callable, rank: int, n_ranks: int, *args, **kwargs):
         return function(*args, **kwargs)
     finally:
         # Unset affinity
-        os.sched_setaffinity(0, my_cores)
+        os.sched_setaffinity(0, avail_cores)
         os.environ.pop("CUDA_VISIBLE_DEVICES")
 
 
