@@ -23,7 +23,7 @@ jobs:
       uses: conda-incubator/setup-miniconda@v2
       with:
         miniconda-version: "latest"
-        environment-file: envs/environment-cpu.yml
+        environment-file: environment.yml
         python-version: "3.10.*"
     - name: Install test dependencies
       run: |
@@ -31,7 +31,10 @@ jobs:
     - name: Lint with flake8
       run: |
         pip install flake8
-        flake8 fff
+        flake8 multirl
+    - name: Start Redis
+      run: |
+        redis-server &> redis.log &
     - name: Test with pytest
       run: |
         pytest --cov=multirl tests
