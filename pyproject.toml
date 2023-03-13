@@ -1,0 +1,40 @@
+[project]
+name = "multirl"
+version = "0.0.1"
+authors = [
+    { name = "Logan Ward", email = "lward@anl.gov" },
+]
+description = 'Scalable training of multiple reinforcement learning models for sequence generation'
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+keywords = ["HPC", "AI", "Workflows"]
+classifiers = [
+    "Development Status :: 1 - Planning",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: System :: Distributed Computing",
+]
+dependencies = [
+    "colmena>=0.4",
+    "redis==3.4.*",
+]
+
+[tool.setuptools.packages.find]
+include = ['multirl*']
+
+[project.urls]
+repository = "https://github.com/exalearn/multi-rl-workflow"
+
+[project.optional-dependencies]
+test = [
+    'flake8',
+    'pytest',
+    'pytest-timeout',
+    'pytest-cov',
+]

@@ -2,7 +2,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from redis.client import Redis
 
-from multirl import get_hosts
+from multirl.utils import get_hosts
 
 
 def test_hosts():

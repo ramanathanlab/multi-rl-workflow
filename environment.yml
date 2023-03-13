@@ -26,3 +26,4 @@ dependencies:
       - funcx_endpoint
       - colmena==0.4.*
       - parsl==2023.2.20
+      - -e .

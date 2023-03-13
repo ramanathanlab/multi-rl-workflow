@@ -15,7 +15,8 @@ from colmena.thinker import BaseThinker, ResourceCounter, task_submitter, result
 from colmena.queue.redis import RedisQueues
 from parsl.configs import htex_local
 
-import multirl as mrl
+from multirl import rl, md, scoring
+from multirl.models import Sequence
 
 
 def _wrap_function(func, *args, **kwargs):
@@ -52,11 +53,11 @@ class Thinker(BaseThinker):
 
         # Create the shared resources
         self.simulation_queue_lock: Condition = Condition()  # Protect the list from concurrent modification
-        self.simulation_queue: list[tuple[float, mrl.Sequence]] = list()  # List of simulations to be executed
-        self.database: dict[mrl.Sequence, dict[str, object]] = defaultdict(dict)  # Database of all sequences which have been evaluated
+        self.simulation_queue: list[tuple[float, Sequence]] = list()  # List of simulations to be executed
+        self.database: dict[Sequence, dict[str, object]] = defaultdict(dict)  # Database of all sequences which have been evaluated
         self.current_model: Path = starting_model  # Path to the latest model
-        self.seqs_being_scored: dict[str, dict[str, mrl.Sequence | int]] = {}  # Sequences currently being scored. Keyed on task_id of generation
-        self.seqs_being_simulated: dict[str, mrl.Sequence] = {}  # Sequences being simulated
+        self.seqs_being_scored: dict[str, dict[str, Sequence | int]] = {}  # Sequences currently being scored. Keyed on task_id of generation
+        self.seqs_being_simulated: dict[str, Sequence] = {}  # Sequences being simulated
 
         # State associated with steering behavior
         self.start_training: Event = Event()  # Mark that we should start re-training the model
@@ -296,15 +297,15 @@ if __name__ == "__main__":
     )
 
     # Pin arguments that do not change between invocations
-    my_train_model = _wrap_function(mrl.train_model, redis_info=('localhost', 6379))
+    my_train_model = _wrap_function(rl.train_model, redis_info=('localhost', 6379))
 
     # Make the task server
     doer = ParslTaskServer(
         methods=[
-            (mrl.batch_run_molecular_dynamics, {}),  # 'executors': ['all', 'train']}),
+            (md.batch_run_molecular_dynamics, {}),  # 'executors': ['all', 'train']}),
             (my_train_model, {}),  # 'executors': ['train', 'all']}),
-            (mrl.policy_rollout, {}),  # {'executors': ['rollout', 'all']}),
-            (mrl.score_sequences, {})  #{'executors': ['rollout', 'all']})
+            (rl.policy_rollout, {}),  # {'executors': ['rollout', 'all']}),
+            (scoring.score_sequences, {})  # {'executors': ['rollout', 'all']})
         ],
         queues=queues,
         config=htex_local.config,

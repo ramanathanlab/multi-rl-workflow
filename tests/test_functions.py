@@ -2,7 +2,10 @@
 from pathlib import Path
 from time import perf_counter
 
-from multirl import train_model, policy_rollout, score_sequences, Sequence, batch_run_molecular_dynamics
+from multirl.models import Sequence
+from multirl.scoring import score_sequences
+from multirl.rl import train_model, policy_rollout
+from multirl.md import batch_run_molecular_dynamics
 
 
 def test_train():
