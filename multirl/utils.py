@@ -80,8 +80,7 @@ def get_hosts(key: str, num_workers: int, redis_info: tuple[str, int] = ('localh
         redis.delete(list_key)  # No longer needed
         num_received = redis.publish(channel, ":".join(hosts))  # Everyone should be subscribed at this point
         assert num_received == num_workers, f'Some workers did not receive host list. Expected: {num_workers}. Found: {num_received}'
-
-    else:
+    else:  # pragma: no cover
         raise ValueError(f'Received rank #{rank}, but there should only be {num_workers} ranks')
 
     # Close the pubsub now that we're done
