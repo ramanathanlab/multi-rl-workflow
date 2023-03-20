@@ -10,7 +10,8 @@ from multirl.md import batch_run_molecular_dynamics
 
 def test_train():
     # Make sure it gets host names
-    new_path, hosts = train_model(Path('model-path'), Path('data-path'), num_workers=1, redis_info=('localhost', 6379))
+    new_path, my_rank, hosts = train_model(Path('model-path'), Path('data-path'), num_workers=1, redis_info=('localhost', 6379))
+    assert my_rank == 0
     assert len(hosts) == 1
 
 

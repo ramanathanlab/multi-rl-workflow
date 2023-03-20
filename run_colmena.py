@@ -4,19 +4,21 @@ from collections import defaultdict
 from threading import Event, Condition
 from pathlib import Path
 from heapq import merge
+from platform import node
 import logging
 import shutil
 import sys
 
 import numpy as np
+from colmena.exceptions import TimeoutException
 from colmena.models import Result
 from colmena.task_server import ParslTaskServer
 from colmena.thinker import BaseThinker, ResourceCounter, task_submitter, result_processor, event_responder
 from colmena.queue.redis import RedisQueues
-from parsl.configs import htex_local
 
 from multirl import rl, md, scoring
 from multirl.models import Sequence
+from multirl.parsl import build_polaris_single_job
 
 
 def _wrap_function(func, *args, **kwargs):
@@ -151,14 +153,18 @@ class Thinker(BaseThinker):
                 self.nodes_per_training,
                 method='train_model',
                 topic='train',
-                task_info={'train_round': self.training_round, 'rank': rank}
+                task_info={'train_round': self.training_round, 'submitted_rank': rank}
             )
         self.logger.info(f'Submitted {self.nodes_per_training} training tasks')
 
         # Wait for all ranks to come back
         new_path: Path = self.current_model
+        timeout: int | None = None
         for rank in range(self.nodes_per_training):
-            result = self.queues.get_result(topic='train')
+            try:
+                result = self.queues.get_result(topic='train', timeout=timeout)
+            except TimeoutException as err:
+                raise ValueError('Training tasks did not exit properly.') from err
             self.logger.info(f'Collected training rank {rank + 1}/{self.nodes_per_training}')
 
             # Make sure it was successful
@@ -168,7 +174,8 @@ class Thinker(BaseThinker):
             self.rec.release('train')
 
             # Save the result. Place the full host list in the task_info to save it
-            new_path, hosts = result.value
+            new_path, my_rank, hosts = result.value
+            result.task_info['rank'] = my_rank
             result.task_info['hosts'] = hosts
             self._save_result(result, 'training')
 
@@ -263,6 +270,9 @@ class Thinker(BaseThinker):
 
 
 if __name__ == "__main__":
+    # Hard-coded arguments for now
+    nodes_per_training = 2
+
     # Clear the test directory
     test_dir = Path('test-run')
     if test_dir.is_dir():
@@ -297,18 +307,21 @@ if __name__ == "__main__":
     )
 
     # Pin arguments that do not change between invocations
-    my_train_model = _wrap_function(rl.train_model, redis_info=('localhost', 6379))
+    my_train_model = _wrap_function(rl.train_model, redis_info=(node(), 6379))
+
+    # Make the Parsl configuration
+    config = build_polaris_single_job(1, '/lus/grand/projects/CSC249ADCD08/multi-rl-workflow/env')
 
     # Make the task server
     doer = ParslTaskServer(
         methods=[
-            (md.batch_run_molecular_dynamics, {}),  # 'executors': ['all', 'train']}),
-            (my_train_model, {}),  # 'executors': ['train', 'all']}),
-            (rl.policy_rollout, {}),  # {'executors': ['rollout', 'all']}),
-            (scoring.score_sequences, {})  # {'executors': ['rollout', 'all']})
+            (md.batch_run_molecular_dynamics, {'executors': ['training']}),
+            (my_train_model, {'executors': ['training']}),
+            (rl.policy_rollout, {'executors': ['rollout']}),
+            (scoring.score_sequences, {'executors': ['rollout']})
         ],
         queues=queues,
-        config=htex_local.config,
+        config=config,
     )
     doer.start()
 
@@ -317,8 +330,8 @@ if __name__ == "__main__":
         queues=queues,
         output_dir=test_dir,
         starting_model=Path('not-real'),
-        nodes_per_training=2,
-        training_slots=4,
+        nodes_per_training=nodes_per_training,
+        training_slots=2,
         rollout_slots=1
     )
     try:

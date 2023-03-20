@@ -20,7 +20,7 @@ loaded_model: Model | None = None  # A loaded model
 
 
 def train_model(model_path: Path, database: Path, num_workers: int,
-                redis_info: tuple[str, int] = ('localhost', 6379)) -> tuple[Path, list[str]]:
+                redis_info: tuple[str, int] = ('localhost', 6379)) -> tuple[Path, int, list[str]]:
     """Train a machine learning model cooperative with other workers
 
     Multiple instances of this function must be run across multiple workers.
@@ -32,12 +32,13 @@ def train_model(model_path: Path, database: Path, num_workers: int,
         redis_info: (Hostname, Port) for the redis server used to coordinate with other workers
     Returns:
         - Path to the new model
+        - My rank within the hosts used for training
         - List of the hosts used for the computation
     """
 
     # Get all cooperative hosts
     key = sha512(str(model_path).encode()).hexdigest()[:16]
-    hosts = get_hosts(key, num_workers, redis_info)
+    my_rank, hosts = get_hosts(key, num_workers, redis_info)
     logger.info(f'Received list of {len(hosts)} hosts that will cooperate in model training')
 
     # Do the magic
@@ -51,7 +52,7 @@ def train_model(model_path: Path, database: Path, num_workers: int,
     #     model.update(loss)
     # model.save(new_path)
     # return new_path, hosts
-    return model_path, hosts
+    return model_path, my_rank, hosts
 
 
 def policy_rollout(model_path: Path, num_episodes: int, batch_size: int) -> list[Sequence]:

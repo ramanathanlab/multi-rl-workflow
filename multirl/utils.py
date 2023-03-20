@@ -40,7 +40,7 @@ def pin_then_run(function: Callable, rank: int, n_ranks: int, *args, **kwargs):
         os.environ.pop("CUDA_VISIBLE_DEVICES")
 
 
-def get_hosts(key: str, num_workers: int, redis_info: tuple[str, int] = ('localhost', 6379)) -> list[str]:
+def get_hosts(key: str, num_workers: int, redis_info: tuple[str, int] = ('localhost', 6379)) -> tuple[int, list[str]]:
     """Get the host names of all other workers
 
     Args:
@@ -60,26 +60,32 @@ def get_hosts(key: str, num_workers: int, redis_info: tuple[str, int] = ('localh
     # Append my hostname to the list
     hostname = node()
     list_key = f'hosts-{key}'
-    rank = redis.lpush(list_key, hostname)
+    rank = redis.lpush(list_key, hostname) - 1  # Change workers to be 0-based numbering
     logger.info(f'I am rank {rank} for {key}')
 
     # Either wait for full list or wait
-    if rank < num_workers:
+    if rank < num_workers - 1:
         # Wait for someone else to publish the list
         hosts = None
         for message in pubsub.listen():
             if message['type'] == 'message':
                 hosts = message['data'].decode().split(":")
                 break
-        pubsub.unsubscribe()
-    elif rank == num_workers:
+    elif rank == num_workers - 1:
         # Send the lists of hosts to everyone else
         hosts = redis.lrange(list_key, 0, rank + 1)
         hosts = [h.decode() for h in hosts]
+        assert len(hosts) == num_workers, f'We did not find the correct number of workers. Expected: {num_workers}. Found: {len(hosts)}.'
 
         redis.delete(list_key)  # No longer needed
-        redis.publish(channel, ":".join(hosts))  # Everyone should be subscribed at this point
+        num_received = redis.publish(channel, ":".join(hosts))  # Everyone should be subscribed at this point
+        assert num_received == num_workers, f'Some workers did not receive host list. Expected: {num_workers}. Found: {num_received}'
+
     else:
         raise ValueError(f'Received rank #{rank}, but there should only be {num_workers} ranks')
 
-    return hosts
+    # Close the pubsub now that we're done
+    pubsub.unsubscribe()
+    pubsub.close()
+
+    return rank, hosts
